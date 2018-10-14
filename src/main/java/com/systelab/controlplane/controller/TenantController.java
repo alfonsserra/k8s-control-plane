@@ -55,10 +55,14 @@ public class TenantController {
     @PostMapping("tenants/tenant")
     public ResponseEntity<Tenant> createTenant(@RequestBody @ApiParam(value = "Tenant", required = true) @Valid TenantRequestInfo p) {
 
-        Tenant tenant=kubernetesService.newTenant(p);
-        Tenant createdTenant = this.tenantRepository.save(tenant);
-        URI uri = MvcUriComponentsBuilder.fromController(getClass()).path("/{id}").buildAndExpand(createdTenant.getId()).toUri();
-        return ResponseEntity.created(uri).body(createdTenant);
+        Tenant tenant = kubernetesService.newTenant(p);
+        if (tenant!=null) {
+            Tenant createdTenant = this.tenantRepository.save(tenant);
+            URI uri = MvcUriComponentsBuilder.fromController(getClass()).path("/{id}").buildAndExpand(createdTenant.getId()).toUri();
+            return ResponseEntity.created(uri).body(createdTenant);
+        } else {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
 
@@ -80,11 +84,10 @@ public class TenantController {
     @DeleteMapping("tenants/{uid}")
     public ResponseEntity<?> removeTenant(@PathVariable("uid") UUID tenantId) {
         return this.tenantRepository.findById(tenantId)
-                .map(c -> {
-                    tenantRepository.delete(c);
+                .map(tenant -> {
+                    kubernetesService.removeTenant(tenant);
+                    tenantRepository.delete(tenant);
                     return ResponseEntity.noContent().build();
                 }).orElseThrow(() -> new TenantNotFoundException(tenantId));
     }
-
-
 }
