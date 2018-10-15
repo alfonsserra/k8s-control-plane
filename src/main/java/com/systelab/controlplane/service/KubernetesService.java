@@ -26,6 +26,8 @@ public class KubernetesService {
             Tenant tenant = new Tenant(tenantRequestInfo);
             Namespace ns = createNameSpace(client, tenantRequestInfo);
             tenant.setNameSpace(ns.getMetadata().getName());
+            createDatabaseDeployment(client, tenantRequestInfo);
+            createDataBaseService(client, tenantRequestInfo);
             createJEEDeployment(client, tenantRequestInfo);
             createJEEService(client, tenantRequestInfo);
             createAngularDeployment(client, tenantRequestInfo);
@@ -84,6 +86,18 @@ public class KubernetesService {
                 .done();
     }
 
+    private io.fabric8.kubernetes.api.model.Service createDataBaseService(KubernetesClient client, TenantRequestInfo tenantRequestInfo) throws KubernetesClientException {
+        final Map<String,String> labels= new HashMap<>();
+        labels.put("app", "mysql");
+
+        return client.services().inNamespace(tenantRequestInfo.getNameSpace()).createNew()
+                .withNewMetadata().withName("mysql-svc").addToLabels("app", "mysql").endMetadata()
+                .withNewSpec().withType("NodePort")
+                .addNewPort().withPort(3306).withProtocol("TCP").endPort().withSelector(labels)
+                .endSpec()
+                .done();
+    }
+
 
     private Deployment createAngularDeployment(KubernetesClient client, TenantRequestInfo tenantRequestInfo) throws KubernetesClientException {
 
@@ -128,6 +142,30 @@ public class KubernetesService {
                 .endTemplate()
                 .withNewSelector()
                 .addToMatchLabels("app", "seed-jee")
+                .endSelector()
+                .endSpec().done();
+    }
+
+    private Deployment createDatabaseDeployment(KubernetesClient client, TenantRequestInfo tenantRequestInfo) throws KubernetesClientException {
+
+        return client.apps().deployments().inNamespace(tenantRequestInfo.getNameSpace()).createNew()
+                .withNewMetadata().withName("mysql-deploy").addToLabels("app", "mysql").endMetadata()
+                .withNewSpec().withReplicas(1).withMinReadySeconds(10)
+                .withNewStrategy().withType("RollingUpdate").endStrategy()
+                .withNewTemplate()
+                .withNewMetadata().addToLabels("app", "mysql").endMetadata()
+                .withNewSpec()
+                .addNewContainer().withName("mysql-pod").withImage("mysql:5.7.22")
+                .addNewPort().withContainerPort(3306).endPort()
+                .addNewEnv().withName("MYSQL_ROOT_PASSWORD").withValue("supersecret").endEnv()
+                .addNewEnv().withName("MYSQL_DATABASE").withValue("SEED").endEnv()
+                .addNewEnv().withName("MYSQL_USER").withValue("SEED").endEnv()
+                .addNewEnv().withName("MYSQL_PASSWORD").withValue("SEED").endEnv()
+                .endContainer()
+                .endSpec()
+                .endTemplate()
+                .withNewSelector()
+                .addToMatchLabels("app", "mysql")
                 .endSelector()
                 .endSpec().done();
     }
